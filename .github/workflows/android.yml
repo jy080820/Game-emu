@@ -20,20 +20,69 @@ jobs:
       with:
         gradle-version: '8.4'
         
-    - name: 4. 권한 및 보안 해제 자동 코드 주입 후 조립!
+    - name: 4. 보안 해제 엔진으로 완전 교체 및 조립!
       run: |
         TARGET_DIR=$(dirname $(find . -name "settings.gradle*" | head -n 1))
         if [ -z "$TARGET_DIR" ]; then TARGET_DIR="."; fi
         cd "$TARGET_DIR"
         
-        # 1. 버전 충돌 버그 수정 (기존)
+        # 권한 및 버전 충돌 버그 수정
         find . -type f -name "build.gradle*" -exec sed -i 's/"1.5.1"/"1.5.3"/g' {} +
-        
-        # 2. Manifest 파일에 인터넷 및 모든 파일 권한 강제 주입!
         find . -type f -name "AndroidManifest.xml" -exec sed -i 's/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" \/>/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.INTERNET" \/>/g' {} +
         
-        # 3. HtmlEngine 파일에 로컬 파일 접근 보안 해제 코드 강제 주입!
-        find . -type f -name "HtmlEngine.kt" -exec sed -i 's/setSupportZoom(false)/setSupportZoom(false)\n                    allowFileAccessFromFileURLs = true\n                    allowUniversalAccessFromFileURLs = true/g' {} +
+        # [핵심] HtmlEngine.kt 파일을 보안이 완전 해제된 코드로 통째로 덮어씁니다!
+        HTML_FILE=$(find . -type f -name "HtmlEngine.kt" | head -n 1)
+        cat << 'EOF' > "$HTML_FILE"
+        package com.example.gameemu
+
+        import android.annotation.SuppressLint
+        import android.webkit.WebSettings
+        import android.webkit.WebView
+        import android.webkit.WebViewClient
+        import android.webkit.WebChromeClient
+        import androidx.compose.runtime.Composable
+        import androidx.compose.ui.Modifier
+        import androidx.compose.ui.viewinterop.AndroidView
+
+        @SuppressLint("SetJavaScriptEnabled")
+        @Composable
+        fun HtmlGameScreen(filePath: String, modifier: Modifier = Modifier) {
+            AndroidView(
+                modifier = modifier,
+                factory = { context ->
+                    WebView(context).apply {
+                        webViewClient = WebViewClient()
+                        webChromeClient = WebChromeClient()
+                        settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            databaseEnabled = true
+                            allowFileAccess = true
+                            allowContentAccess = true
+                            allowFileAccessFromFileURLs = true
+                            allowUniversalAccessFromFileURLs = true
+                            mediaPlaybackRequiresUserGesture = false
+                            setSupportZoom(false)
+                            useWideViewPort = true
+                            loadWithOverviewMode = true
+                            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        }
+                        clearCache(true)
+                        loadUrl("file://$filePath")
+                    }
+                }
+            )
+        }
+        EOF
+        
+        # 무사히 조립 시작
+        gradle assembleDebug
+        
+    - name: 5. 완성된 APK 파일 추출하기
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: "**/*.apk"
         
         # 수정 완료 후 무사히 조립 시작
         gradle assembleDebug
