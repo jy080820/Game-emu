@@ -15,12 +15,15 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         
-    - name: 3. 자동으로 프로젝트 폴더 찾아서 앱 조립하기 (Gradle)
+    - name: 3. 내장된 맞춤 조립기에 실행 권한 주고 조립 시작!
       run: |
         TARGET_DIR=$(dirname $(find . -name "build.gradle*" | head -n 1))
         if [ -z "$TARGET_DIR" ]; then TARGET_DIR="."; fi
         cd "$TARGET_DIR"
-        gradle assembleDebug
+        
+        # 권한을 부여하고 내장된 조립기(gradlew)를 실행합니다.
+        chmod +x gradlew
+        ./gradlew assembleDebug
         
     - name: 4. 완성된 APK 추출하기
       uses: actions/upload-artifact@v4
