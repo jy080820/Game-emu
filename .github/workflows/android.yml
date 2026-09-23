@@ -15,23 +15,26 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: 3. 호환성 에러 없는 딱 맞는 버전의 Gradle(조립기) 설치
+    - name: 3. 딱 맞는 버전의 Gradle(조립기) 설치
       uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.4'
         
-    - name: 4. 폴더 찾아서 앱 조립 시작!
+    - name: 4. 버전 충돌 버그 자동 수정 및 앱 조립!
       run: |
-        # 진짜 메인 설정 파일이 있는 곳을 똑똑하게 찾아서 이동합니다.
         TARGET_DIR=$(dirname $(find . -name "settings.gradle*" | head -n 1))
         if [ -z "$TARGET_DIR" ]; then TARGET_DIR="."; fi
         cd "$TARGET_DIR"
         
-        # gradlew가 없어도, 방금 설치한 조립기로 무조건 실행되게 합니다.
+        # [마법의 코드] 짝꿍이 안 맞는 1.5.1 버전을 코틀린 1.9.10과 호환되는 1.5.3으로 몰래 바꿉니다!
+        find . -type f -name "build.gradle*" -exec sed -i 's/"1.5.1"/"1.5.3"/g' {} +
+        
+        # 무사히 조립 시작
         gradle assembleDebug
         
     - name: 5. 완성된 APK 파일 추출하기
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
+        path: "**/*.apk"
         path: "**/*.apk"
